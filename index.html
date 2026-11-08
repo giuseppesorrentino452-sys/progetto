@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Progetto IA Gesti</title>
+  
+  <!-- File stabili ufficiali di Google MediaPipe per tracciare le mani -->
+  <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+  <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+
+  <style>
+    body {
+      margin: 0; padding: 0;
+      background-color: #0d0d11;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      height: 100vh;
+      font-family: sans-serif; color: white;
+    }
+    h1 { font-size: 22px; margin-bottom: 5px; color: #00ffcc; }
+    p { margin: 0 0 15px 0; color: #888; font-size: 14px; }
+    #btn-avvia {
+      background: #00ffaa; color: #111;
+      font-size: 18px; font-weight: bold;
+      padding: 15px 35px; border: none; border-radius: 30px;
+      cursor: pointer; box-shadow: 0 5px 20px rgba(0,255,170,0.4);
+      margin-bottom: 15px;
+    }
+    .box-video {
+      position: relative; width: 640px; height: 480px;
+      border: 3px solid #00ffcc; border-radius: 12px;
+      overflow: hidden; background: #15151f;
+    }
+    #webcam, #output {
+      position: absolute; top: 0; left: 0; width: 640px; height: 480px;
+      object-fit: cover; transform: scaleX(-1);
+    }
+    #output { z-index: 2; }
+    #caricamento {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #00ffcc; font-size: 18px; display: none; z-index: 3;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>IA GESTI DELLE MANI - PROGETTO SCUOLA 🖐️</h1>
+  <p>Mostra le mani aperte per creare onde geometriche psichedeliche</p>
+  
+  <!-- Usiamo onclick diretto per forzare il browser ad attivare la funzione -->
+  <button id="btn-avvia" onclick="avviaTutto()">ACCENDI WEBCAM</button>
+
+  <div class="box-video">
+    <div id="caricamento">Configurazione Intelligenza Artificiale... ⏳</div>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="output"></canvas>
+  </div>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('output');
+    const ctx = canvas.getContext('2d');
+    const btnAvvia = document.getElementById('btn-avvia');
+    const txtCaricamento = document.getElementById('caricamento');
+
+    canvas.width = 640;
+    canvas.height = 480;
+
+    // Configura l'algoritmo di IA di Google
+    const hands = new Hands({
+      locateFile: (file) => `https://jsdelivr.net{file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+
+    hands.onResults((results) => {
+      txtCaricamento.style.display = "none";
+      
+      // Effetto scia
+      ctx.fillStyle = "rgba(13, 13, 17, 0.25)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        let posizioniMani = [];
+
+        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+          const landmarks = results.multiHandLandmarks[i];
+          const x = landmarks[8].x * canvas.width; // Punto 8 = punta indice
+          const y = landmarks[8].y * canvas.height;
+          posizioniMani.push({ x: x, y: y });
+
+          // EFFETTO 1: Cerchi concentrici psichedelici
+          let tempo = Date.now() * 0.004;
+          ctx.lineWidth = 4;
+          for (let j = 1; j <= 3; j++) {
+            let raggio = ((tempo * 22 + j * 35) % 80);
+            ctx.beginPath();
+            ctx.arc(x, y, raggio, 0, 2 * Math.PI);
+            ctx.strokeStyle = `hsl(${(tempo * 15 + j * 40) % 360}, 100%, 60%)`;
+            ctx.stroke();
+          }
+        }
+
+        // EFFETTO 2: Se ci sono due mani, le unisce
+        if (posizioniMani.length === 2) {
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = '#00ffff';
+          let oscillazione = Math.sin(Date.now() * 0.006) * 50;
+
+          ctx.beginPath();
+          ctx.moveTo(posizioniMani[0].x, posizioniMani[0].y);
+          ctx.bezierCurveTo(
+            posizioniMani[0].x + oscillazione, posizioniMani[0].y - oscillazione,
+            posizioniMani[1].x - oscillazione, posizioniMani[1].y + oscillazione,
+            posizioniMani[1].x, posizioniMani[1].y
+          );
+          ctx.stroke();
+        }
+      }
+    });
+
+    // Funzione forzata che si attiva al clic
+    async function avviaTutto() {
+      btnAvvia.style.display = "none";
+      txtCaricamento.style.display = "block";
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        video.srcObject = stream;
+        
+        const camera = new Camera(video, {
+          onFrame: async () => {
+            await hands.send({ image: video });
+          },
+          width: 640,
+          height: 480
+        });
+        camera.start();
+      } catch (err) {
+        alert("Errore fotocamera! Assicurati di dare i permessi nel browser.");
+        btnAvvia.style.display = "block";
+        txtCaricamento.style.display = "none";
+      }
+    }
+  </script>
+</body>
+</html>
