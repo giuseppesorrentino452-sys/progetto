@@ -3,115 +3,113 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Progetto IA Scuola - Forme Automatiche</title>
+  <title>Progetto IA Scuola</title>
   
-  <!-- Caricamento delle librerie stabili via HTTPS per sbloccare la webcam -->
+  <!-- Inclusione delle librerie stabili ufficiali -->
   <script src="https://cloudflare.com"></script>
   <script src="https://unpkg.com"></script>
 
   <style>
     body {
       margin: 0; padding: 0;
-      background-color: #08080c;
+      background-color: #0a0a0c;
       display: flex; justify-content: center; align-items: center;
       height: 100vh; font-family: sans-serif; color: white;
       overflow: hidden;
     }
-    #canvas-box {
-      border: 4px solid #00ffcc; /* Bordo neon turchese */
+    #canvas-container {
+      border: 4px solid #00ffcc;
       border-radius: 16px;
-      box-shadow: 0 0 35px rgba(0, 255, 200, 0.25);
+      box-shadow: 0 0 40px rgba(0, 255, 200, 0.3);
     }
   </style>
 </head>
 <body>
 
-  <!-- Schermo dove si vedrà la webcam e l'effetto -->
-  <div id="canvas-box"></div>
+  <div id="canvas-container"></div>
 
   <script>
     let video;
     let handPose;
     let hands = [];
-    let iaPronta = false;
+    let modelloPronto = false;
 
-    // 1. Carica l'algoritmo di tracciamento in background
-    function preload() {
-      handPose = ml5.handPose();
-    }
-
-    // 2. Questa funzione scatta all'istante all'apertura del sito
-    function setup() {
+    // Struttura asincrona per evitare blocchi del browser
+    async function setup() {
       let canvas = createCanvas(640, 480);
-      canvas.parent('canvas-box');
+      canvas.parent('canvas-container');
       
-      // FORZATURA WEBCAM: Chiede subito i permessi al browser all'avvio della pagina
+      // 1. Attivazione immediata della webcam
       video = createCapture(VIDEO, { flipped: true });
       video.size(640, 480);
-      video.hide(); // Nasconde l'inquadratura originale per disegnarci sopra gli effetti
+      video.hide();
       
-      // Avvia la scansione automatica delle mani
+      // 2. Caricamento forzato dell'IA di Google
+      print("Caricamento modello...");
+      handPose = await ml5.handPose();
+      print("Modello Pronto!");
+      modelloPronto = true;
+      
+      // 3. Avvio scansione fotogrammi
       handPose.detectStart(video, gotHands);
     }
 
-    // 3. Riceve i dati geometrici delle dita
     function gotHands(results) {
       hands = results;
-      iaPronta = true;
     }
 
-    // 4. Disegna gli effetti continui sullo schermo
     function draw() {
-      // Finché l'utente non accetta la webcam o l'IA si sta configurando
-      if (!iaPronta) {
-        background(15, 15, 22);
+      // Schermata di caricamento nativa controllata dallo stato del programma
+      if (!modelloPronto) {
+        background(15, 15, 20);
         fill(0, 255, 200);
         textSize(20);
         textAlign(CENTER, CENTER);
-        text("ATTIVAZIONE WEBCAM... ⏳\n\nClicca su 'Consenti' nel fumetto in alto!", width / 2, height / 2);
+        text("SBLOCCO WEBCAM IN CORSO... ⏳\n\nClicca su 'Consenti' nel fumetto in alto!", width / 2, height / 2);
         return;
       }
 
-      // Sfondo nero semitrasparente (Crea l'effetto scia luminosa)
+      // Effetto persistenza scia neon
       background(0, 0, 0, 25);
       
-      // Mostra la webcam specchiata come sfondo del canvas
+      // Mostra la webcam specchiata
       image(video, 0, 0, width, height);
 
-      // Se l'intelligenza artificiale rileva le mani
+      // Lettura dei punti geometrici
       if (hands.length > 0) {
-        let coordinateMani = [];
+        let coordinateRilevate = [];
 
         for (let i = 0; i < hands.length; i++) {
-          let mano = hands[i];
-          let indice = mano.index_finger_tip; // Identifica la punta del dito indice
+          let hand = hands[i];
+          
+          // Estrazione nativa del punto dell'indice secondo i nuovi standard ml5
+          let indice = hand.index_finger_tip;
           
           if (indice) {
-            coordinateMani.push({ x: indice.x, y: indice.y });
+            coordinateRilevate.push({ x: indice.x, y: indice.y });
 
-            // --- EFFETTO 1: Cerchi concentrici psichedelici arcobaleno ---
+            // --- EFFETTO 1: Cerchi concentrici animati arcobaleno ---
             noFill();
             strokeWeight(4);
-            colorMode(HSB); // Attiva lo spettro dei colori arcobaleno
+            colorMode(HSB);
             stroke((frameCount * 3 + i * 120) % 360, 90, 100); 
             
             for (let j = 1; j <= 3; j++) {
               let diametro = (frameCount * 4 + j * 35) % 160;
               ellipse(indice.x, indice.y, diametro, diametro);
             }
-            colorMode(RGB); // Ritorna ai colori standard
+            colorMode(RGB);
           }
         }
 
-        // --- EFFETTO 2: Se inquadri ENTRAMBE le mani, si collegano con forme strane ---
-        if (coordinateMani.length === 2) {
-          stroke(0, 255, 230); // Splendido azzurro elettrico neon
+        // --- EFFETTO 2: Collegamento elastico tra due mani ---
+        if (coordinateRilevate.length === 2) {
+          stroke(0, 255, 230);
           strokeWeight(3);
           
-          let m1 = coordinateMani[0];
-          let m2 = coordinateMani[1];
+          let m1 = coordinateRilevate[0];
+          let m2 = coordinateRilevate[1];
 
-          // Genera una ragnatela di 10 onde geometriche elastiche tese tra le due mani
           for (let k = 0; k <= 10; k++) {
             let t = k / 10;
             let oscillazione = sin(frameCount * 0.12 + k) * 55; 
