@@ -4,121 +4,162 @@
   <meta charset="utf-8">
   <title>Progetto IA Scuola - Forme Neon</title>
   
-  <!-- Librerie stabili caricate via HTTPS sicuro -->
-  <script src="https://cloudflare.com"></script>
-  <script src="https://unpkg.com"></script>
+  <!-- Carichiamo direttamente gli script ufficiali stabili di Google MediaPipe -->
+  <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+  <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
 
   <style>
     body {
       margin: 0; padding: 0;
-      background-color: #0c0c10;
-      display: flex; justify-content: center; align-items: center;
+      background-color: #0b0b0e;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
       height: 100vh; font-family: sans-serif; color: white;
-      overflow: hidden;
     }
-    #canvas-box {
-      border: 4px solid #00ffcc; border-radius: 15px;
-      box-shadow: 0 0 30px rgba(0, 255, 200, 0.2);
+    h1 { font-size: 22px; margin-bottom: 5px; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,200,0.3); }
+    p { margin: 0 0 20px 0; color: #888; font-size: 14px; }
+    
+    /* Stile del grande pulsante verde di sblocco */
+    #btn-avvia {
+      background: #00ffaa; color: #111;
+      font-size: 18px; font-weight: bold;
+      padding: 16px 40px; border: none; border-radius: 30px;
+      cursor: pointer; box-shadow: 0 5px 20px rgba(0,255,170,0.4);
+      margin-bottom: 15px; transition: 0.2s;
+    }
+    #btn-avvia:hover { transform: scale(1.05); }
+    
+    .box-video {
+      position: relative; width: 640px; height: 480px;
+      border: 3px solid #00ffcc; border-radius: 12px;
+      overflow: hidden; background: #13131a;
+    }
+    #webcam, #output {
+      position: absolute; top: 0; left: 0; width: 640px; height: 480px;
+      object-fit: cover; transform: scaleX(-1); /* Specchia video e grafica */
+    }
+    #output { z-index: 2; }
+    #caricamento {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #00ffcc; font-size: 18px; display: none; z-index: 3;
     }
   </style>
 </head>
 <body>
 
-  <div id="canvas-box"></div>
+  <h1>IA GESTI DELLE MANI - PROGETTO SCUOLA 🖐️</h1>
+  <p>Premi il pulsante verde, dai il consenso e muovi le mani aperte davanti allo schermo</p>
+  
+  <!-- Comando di attivazione diretto sul pulsante per costringere il browser a rispondere -->
+  <button id="btn-avvia" onclick="faiPartireWebcam()">ACCENDI WEBCAM</button>
+
+  <div class="box-video">
+    <div id="caricamento">Configurazione Intelligenza Artificiale... ⏳</div>
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="output"></canvas>
+  </div>
 
   <script>
-    let video;
-    let handPose;
-    let hands = [];
-    let iaPronta = false;
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('output');
+    const ctx = canvas.getContext('2d');
+    const btnAvvia = document.getElementById('btn-avvia');
+    const txtCaricamento = document.getElementById('caricamento');
 
-    function preload() {
-      // Carica il modello nativo di ml5
-      handPose = ml5.handPose();
-    }
+    canvas.width = 640;
+    canvas.height = 480;
 
-    function setup() {
-      let canvas = createCanvas(640, 480);
-      canvas.parent('canvas-box');
+    // Configura l'algoritmo di IA originale delle mani di Google MediaPipe
+    const hands = new Hands({
+      locateFile: (file) => `https://jsdelivr.net{file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+
+    // Funzione interna che disegna le linee e i cerchi quando vede le mani
+    hands.onResults((results) => {
+      txtCaricamento.style.display = "none";
       
-      // Avvia la webcam in modalità specchiata nativa (flipped)
-      video = createCapture(VIDEO, { flipped: true });
-      video.size(640, 480);
-      video.hide();
-      
-      // Forza l'IA a cercare le mani nel video
-      handPose.detectStart(video, gotHands);
-    }
+      // Crea l'effetto scia lasciando un velo nero trasparente sullo sfondo
+      ctx.fillStyle = "rgba(11, 11, 14, 0.25)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    function gotHands(results) {
-      hands = results;
-      iaPronta = true;
-    }
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        let puntiMani = [];
 
-    function draw() {
-      // Schermata iniziale di caricamento
-      if (!iaPronta) {
-        background(20, 20, 28);
-        fill(0, 255, 200);
-        textSize(20);
-        textAlign(CENTER, CENTER);
-        text("Configurazione IA in corso... ⏳\n\nSe il browser lo chiede, premi 'Consenti' in alto!", width / 2, height / 2);
-        return;
+        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+          const landmarks = results.multiHandLandmarks[i];
+          
+          // Punto 8 di MediaPipe = coordinata della punta del dito indice
+          const x = landmarks[8].x * canvas.width;
+          const y = landmarks[8].y * canvas.height;
+          puntiMani.push({ x: x, y: y });
+
+          // --- EFFETTO 1: Cerchi concentrici animati ---
+          let tempo = Date.now() * 0.004;
+          ctx.lineWidth = 4;
+          
+          for (let j = 1; j <= 3; j++) {
+            let raggio = ((tempo * 22 + j * 35) % 80);
+            ctx.beginPath();
+            ctx.arc(x, y, raggio, 0, 2 * Math.PI);
+            ctx.strokeStyle = `hsl(${(tempo * 15 + j * 40) % 360}, 100%, 60%)`;
+            ctx.stroke();
+          }
+        }
+
+        // --- EFFETTO 2: Se compaiono due mani, le unisce con una curva elastica ---
+        if (puntiMani.length === 2) {
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = '#00ffff'; // Colore azzurro neon brillante
+          
+          const m1 = puntiMani[0];
+          const m2 = puntiMani[1];
+          let oscillazione = Math.sin(Date.now() * 0.006) * 60;
+
+          ctx.beginPath();
+          ctx.moveTo(m1.x, m1.y);
+          ctx.bezierCurveTo(
+            m1.x + oscillazione, m1.y - oscillazione,
+            m2.x - oscillazione, m2.y + oscillazione,
+            m2.x, m2.y
+          );
+          ctx.stroke();
+        }
+      } else {
+        // Se non vede mani, pulisce lo schermo normalmente per mostrare il video fluido
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
+    });
 
-      // Effetto scia neon psichedelico
-      background(0, 0, 0, 25);
-      
-      // Disegna il video della webcam specchiato di sfondo
-      image(video, 0, 0, width, height);
+    // Funzione forzata che scatta al click del mouse
+    async function faiPartireWebcam() {
+      btnAvvia.style.display = "none";
+      txtCaricamento.style.display = "block";
 
-      // Se l'IA rileva le mani sul canvas
-      if (hands.length > 0) {
-        let coordinateMani = [];
-
-        for (let i = 0; i < hands.length; i++) {
-          let hand = hands[i];
-          
-          // Sintassi ufficiale ml5.js per la punta dell'indice
-          let indice = hand.index_finger_tip; 
-          
-          if (indice) {
-            coordinateMani.push({ x: indice.x, y: indice.y });
-
-            // --- EFFETTO 1: Cerchi concentrici magici ---
-            noFill();
-            strokeWeight(4);
-            colorMode(HSB);
-            stroke((frameCount * 3 + i * 100) % 360, 90, 100); 
-            
-            for (let j = 1; j <= 3; j++) {
-              let diametro = (frameCount * 4 + j * 35) % 160;
-              ellipse(indice.x, indice.y, diametro, diametro);
-            }
-            colorMode(RGB);
-          }
-        }
-
-        // --- EFFETTO 2: Se ci sono due mani, tiriamo le linee strane ---
-        if (coordinateMani.length === 2) {
-          stroke(0, 255, 230); // Celeste elettrico
-          strokeWeight(3);
-          
-          let m1 = coordinateMani[0];
-          let m2 = coordinateMani[1];
-
-          for (let k = 0; k <= 10; k++) {
-            let t = k / 10;
-            let onda = sin(frameCount * 0.12 + k) * 55; 
-            
-            let startX = lerp(m1.x, m2.x, t) + onda;
-            let startY = lerp(m1.y, m2.y, t) - onda;
-            let endX = lerp(m1.x, m2.x, (k + 1) / 10) - onda;
-            let endY = lerp(m1.y, m2.y, (k + 1) / 10) + onda;
-            
-            line(startX, startY, endX, endY);
-          }
-        }
+      try {
+        // Chiede al browser i flussi video della webcam fisicamente collegata
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        video.srcObject = stream;
+        
+        // Avvia l'infrastruttura di analisi fotogramma per fotogramma
+        const camera = new Camera(video, {
+          onFrame: async () => {
+            await hands.send({ image: video });
+          },
+          width: 640,
+          height: 480
+        });
+        camera.start();
+      } catch (err) {
+        alert("Errore fotocamera: assicurati di dare i permessi nel browser o chiudi altre app aperte (Discord, Teams, ecc.)!");
+        btnAvvia.style.display = "block";
+        txtCaricamento.style.display = "none";
       }
     }
   </script>
