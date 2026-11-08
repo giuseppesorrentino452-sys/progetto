@@ -3,127 +3,160 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Progetto IA Scuola</title>
-  
-  <!-- Inclusione delle librerie stabili ufficiali -->
-  <script src="https://cloudflare.com"></script>
-  <script src="https://unpkg.com"></script>
-
+  <title>Progetto Scuola - Forme Geometriche Magiche</title>
   <style>
     body {
       margin: 0; padding: 0;
-      background-color: #0a0a0c;
-      display: flex; justify-content: center; align-items: center;
-      height: 100vh; font-family: sans-serif; color: white;
-      overflow: hidden;
+      background-color: #0b0b0f;
+      color: white; font-family: sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; overflow: hidden;
     }
-    #canvas-container {
-      border: 4px solid #00ffcc;
-      border-radius: 16px;
-      box-shadow: 0 0 40px rgba(0, 255, 200, 0.3);
+    h1 { font-size: 22px; margin: 0 0 5px 0; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,200,0.3); }
+    p { margin: 0 0 15px 0; color: #888; font-size: 14px; text-align: center; }
+    .box-video {
+      position: relative; width: 640px; height: 480px;
+      border: 3px solid #00ffcc; border-radius: 12px;
+      overflow: hidden; background: #13131a;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    #webcam {
+      position: absolute; top: 0; left: 0; width: 640px; height: 480px;
+      object-fit: cover; transform: scaleX(-1); /* Specchia il video */
+    }
+    #output {
+      position: absolute; top: 0; left: 0; width: 640px; height: 480px;
+      z-index: 2; transform: scaleX(-1); /* Specchia la grafica */
+      cursor: crosshair;
     }
   </style>
 </head>
 <body>
 
-  <div id="canvas-container"></div>
+  <h1>FORME GEOMETRICHE CON LE MANI 🖐️</h1>
+  <p>Consenti la webcam. Mostra un oggetto colorato e <b>cliccaci sopra col mouse</b> nel video per tracciarlo!</p>
+
+  <div class="box-video">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="output"></canvas>
+  </div>
 
   <script>
-    let video;
-    let handPose;
-    let hands = [];
-    let modelloPronto = false;
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('output');
+    const ctx = canvas.getContext('2d');
 
-    // Struttura asincrona per evitare blocchi del browser
-    async function setup() {
-      let canvas = createCanvas(640, 480);
-      canvas.parent('canvas-container');
-      
-      // 1. Attivazione immediata della webcam
-      video = createCapture(VIDEO, { flipped: true });
-      video.size(640, 480);
-      video.hide();
-      
-      // 2. Caricamento forzato dell'IA di Google
-      print("Caricamento modello...");
-      handPose = await ml5.handPose();
-      print("Modello Pronto!");
-      modelloPronto = true;
-      
-      // 3. Avvio scansione fotogrammi
-      handPose.detectStart(video, gotHands);
-    }
+    canvas.width = 640;
+    canvas.height = 480;
 
-    function gotHands(results) {
-      hands = results;
-    }
+    // Colore iniziale da inseguire (di default un bel rosso acceso)
+    let targetR = 255;
+    let targetG = 0;
+    let targetB = 50;
+    let tolleranza = 45; // Sensibilità dell'inseguimento
 
-    function draw() {
-      // Schermata di caricamento nativa controllata dallo stato del programma
-      if (!modelloPronto) {
-        background(15, 15, 20);
-        fill(0, 255, 200);
-        textSize(20);
-        textAlign(CENTER, CENTER);
-        text("SBLOCCO WEBCAM IN CORSO... ⏳\n\nClicca su 'Consenti' nel fumetto in alto!", width / 2, height / 2);
-        return;
+    // FENOMENALE: Avvia la telecamera in modo nativo e automatico all'apertura del sito
+    async function avviaFotocamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        video.srcObject = stream;
+        requestAnimationFrame(processaVideo);
+      } catch (err) {
+        alert("Impossibile accedere alla webcam. Assicurati di dare i permessi nel fumetto del browser!");
       }
+    }
 
-      // Effetto persistenza scia neon
-      background(0, 0, 0, 25);
+    // Se l'utente clicca sul video, cattura il colore esatto del pixel cliccato
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      // Calcola la X tenendo conto dell'effetto specchio
+      const x = Math.floor((640 - (e.clientX - rect.left) * (640 / rect.width)));
+      const y = Math.floor((e.clientY - rect.top) * (480 / rect.height));
       
-      // Mostra la webcam specchiata
-      image(video, 0, 0, width, height);
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 640; tempCanvas.height = 480;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(video, 0, 0, 640, 480);
+      
+      const pixel = tempCtx.getImageData(x, y, 1, 1).data;
+      targetR = pixel[0];
+      targetG = pixel[1];
+      targetB = pixel[2];
+    });
 
-      // Lettura dei punti geometrici
-      if (hands.length > 0) {
-        let coordinateRilevate = [];
-
-        for (let i = 0; i < hands.length; i++) {
-          let hand = hands[i];
+    // Funzione principale di disegno ed elaborazione pixel
+    function processaVideo() {
+      // Crea l'effetto scia trasparente nera sullo sfondo
+      ctx.fillStyle = "rgba(11, 11, 15, 0.2)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = 640; tempCanvas.height = 480;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(video, 0, 0, 640, 480);
+      
+      const imgData = tempCtx.getImageData(0, 0, 640, 480);
+      const data = imgData.data;
+      
+      let sommaX = 0;
+      let sommaY = 0;
+      let contatorePixel = 0;
+      
+      // Scansiona i pixel dello schermo a caccia del colore target
+      for (let y = 0; y < 480; y += 4) { 
+        for (let x = 0; x < 640; x += 4) {
+          const index = (y * 640 + x) * 4;
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
           
-          // Estrazione nativa del punto dell'indice secondo i nuovi standard ml5
-          let indice = hand.index_finger_tip;
+          // Distanza matematica del colore rispetto a quello selezionato
+          const distanza = Math.sqrt((r - targetR)**2 + (g - targetG)**2 + (b - targetB)**2);
           
-          if (indice) {
-            coordinateRilevate.push({ x: indice.x, y: indice.y });
-
-            // --- EFFETTO 1: Cerchi concentrici animati arcobaleno ---
-            noFill();
-            strokeWeight(4);
-            colorMode(HSB);
-            stroke((frameCount * 3 + i * 120) % 360, 90, 100); 
-            
-            for (let j = 1; j <= 3; j++) {
-              let diametro = (frameCount * 4 + j * 35) % 160;
-              ellipse(indice.x, indice.y, diametro, diametro);
-            }
-            colorMode(RGB);
-          }
-        }
-
-        // --- EFFETTO 2: Collegamento elastico tra due mani ---
-        if (coordinateRilevate.length === 2) {
-          stroke(0, 255, 230);
-          strokeWeight(3);
-          
-          let m1 = coordinateRilevate[0];
-          let m2 = coordinateRilevate[1];
-
-          for (let k = 0; k <= 10; k++) {
-            let t = k / 10;
-            let oscillazione = sin(frameCount * 0.12 + k) * 55; 
-            
-            let startX = lerp(m1.x, m2.x, t) + oscillazione;
-            let startY = lerp(m1.y, m2.y, t) - oscillazione;
-            let endX = lerp(m1.x, m2.x, (k + 1) / 10) - oscillazione;
-            let endY = lerp(m1.y, m2.y, (k + 1) / 10) + oscillazione;
-            
-            line(startX, startY, endX, endY);
+          if (distanza < tolleranza) {
+            sommaX += x;
+            sommaY += y;
+            contatorePixel++;
           }
         }
       }
+      
+      // Se trova il colore, calcola il centro e disegna le forme geometriche psichedeliche
+      if (contatorePixel > 15) {
+        const centroX = sommaX / contatorePixel;
+        const centroY = sommaY / contatorePixel;
+        
+        let tempo = Date.now() * 0.005;
+        ctx.lineWidth = 4;
+        
+        // Genera 3 forme geometriche rotanti e fluttuanti al neon
+        for (let j = 1; j <= 3; j++) {
+          let raggio = ((tempo * 20 + j * 35) % 150);
+          ctx.beginPath();
+          
+          // Formula per creare un poligono geometrico (es. esagono/stella rotante)
+          for (let anglo = 0; anglo < Math.PI * 2; anglo += 0.8) {
+            let oscillazione = Math.sin(anglo * 4 + tempo) * 15;
+            let xForma = centroX + (raggio + oscillazione) * Math.cos(anglo + tempo);
+            let yForma = centroY + (raggio + oscillazione) * Math.sin(anglo + tempo);
+            
+            if (anglo === 0) ctx.moveTo(xForma, yForma);
+            else ctx.lineTo(xForma, yForma);
+          }
+          
+          ctx.closePath();
+          // Colore neon arcobaleno cangiante nel tempo
+          ctx.strokeStyle = `hsl(${(tempo * 15 + j * 55) % 360}, 100%, 60%)`;
+          ctx.stroke();
+        }
+      }
+      
+      requestAnimationFrame(processaVideo);
     }
+
+    // Parte da solo all'avvio della pagina
+    window.onload = avviaFotocamera;
   </script>
 </body>
 </html>
