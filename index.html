@@ -2,30 +2,32 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>Progetto IA Scuola</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Progetto IA Scuola - Forme Automatiche</title>
   
-  <!-- Carichiamo p5.js e ml5.js ufficiali e leggeri dalle sorgenti sicure -->
+  <!-- Caricamento delle librerie stabili via HTTPS per sbloccare la webcam -->
   <script src="https://cloudflare.com"></script>
   <script src="https://unpkg.com"></script>
 
   <style>
     body {
       margin: 0; padding: 0;
-      background-color: #0f0f14;
+      background-color: #08080c;
       display: flex; justify-content: center; align-items: center;
       height: 100vh; font-family: sans-serif; color: white;
       overflow: hidden;
     }
-    #canvas-container {
-      border: 4px solid #00ffcc; border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0, 255, 210, 0.3);
+    #canvas-box {
+      border: 4px solid #00ffcc; /* Bordo neon turchese */
+      border-radius: 16px;
+      box-shadow: 0 0 35px rgba(0, 255, 200, 0.25);
     }
   </style>
 </head>
 <body>
 
-  <!-- Box dove verrà inserito lo schermo del progetto -->
-  <div id="canvas-container"></div>
+  <!-- Schermo dove si vedrà la webcam e l'effetto -->
+  <div id="canvas-box"></div>
 
   <script>
     let video;
@@ -33,88 +35,83 @@
     let hands = [];
     let iaPronta = false;
 
-    // 1. Carichiamo l'Intelligenza Artificiale
+    // 1. Carica l'algoritmo di tracciamento in background
     function preload() {
       handPose = ml5.handPose();
     }
 
-    // 2. Impostiamo lo schermo del progetto e la webcam
+    // 2. Questa funzione scatta all'istante all'apertura del sito
     function setup() {
       let canvas = createCanvas(640, 480);
-      canvas.parent('canvas-container'); // Inserisce il disegno dentro il nostro box fisso
+      canvas.parent('canvas-box');
       
-      // Accendiamo la webcam in modalità specchiata (flipped: true) per renderla naturale
+      // FORZATURA WEBCAM: Chiede subito i permessi al browser all'avvio della pagina
       video = createCapture(VIDEO, { flipped: true });
       video.size(640, 480);
-      video.hide(); // Nascondiamo il video grezzo per poterci disegnare sopra
+      video.hide(); // Nasconde l'inquadratura originale per disegnarci sopra gli effetti
       
-      // Diciamo all'IA di iniziare a cercare continuamente le mani nel video
+      // Avvia la scansione automatica delle mani
       handPose.detectStart(video, gotHands);
     }
 
-    // 3. Questa funzione si attiva da sola ogni volta che l'IA vede le mani
+    // 3. Riceve i dati geometrici delle dita
     function gotHands(results) {
       hands = results;
-      iaPronta = true; // Il modello ha risposto ed è attivo!
+      iaPronta = true;
     }
 
-    // 4. Ciclo grafico continuo a 60 fotogrammi al secondo
+    // 4. Disegna gli effetti continui sullo schermo
     function draw() {
-      // Se l'IA sta ancora caricando i file in background, mostra la schermata d'attesa
+      // Finché l'utente non accetta la webcam o l'IA si sta configurando
       if (!iaPronta) {
-        background(20, 20, 30);
-        fill(255);
-        textSize(18);
+        background(15, 15, 22);
+        fill(0, 255, 200);
+        textSize(20);
         textAlign(CENTER, CENTER);
-        text("Sto configurando l'IA delle mani... ⏳\n\nFai click su 'Consenti' in alto se compare il fumetto!", width / 2, height / 2);
+        text("ATTIVAZIONE WEBCAM... ⏳\n\nClicca su 'Consenti' nel fumetto in alto!", width / 2, height / 2);
         return;
       }
 
-      // Effetto "scia neon": uno sfondo nero trasparente che lascia le tracce dei movimenti
+      // Sfondo nero semitrasparente (Crea l'effetto scia luminosa)
       background(0, 0, 0, 25);
       
-      // Disegna il video catturato dalla webcam come sfondo del nostro schermo
+      // Mostra la webcam specchiata come sfondo del canvas
       image(video, 0, 0, width, height);
 
-      // Se l'IA rileva almeno una mano...
+      // Se l'intelligenza artificiale rileva le mani
       if (hands.length > 0) {
-        let coordinateTrovate = [];
+        let coordinateMani = [];
 
-        // Ciclo su tutte le mani inquadrate (fino a un massimo di 2)
         for (let i = 0; i < hands.length; i++) {
           let mano = hands[i];
+          let indice = mano.index_finger_tip; // Identifica la punta del dito indice
           
-          // Leggiamo la coordinata della punta del dito indice (sintassi ufficiale ml5.js)
-          let puntaDito = mano.index_finger_tip;
-          
-          if (puntaDito) {
-            // Salviamo la posizione della mano per usarla dopo nell'effetto 2
-            coordinateTrovate.push({ x: puntaDito.x, y: puntaDito.y });
+          if (indice) {
+            coordinateMani.push({ x: indice.x, y: indice.y });
 
-            // --- EFFETTO 1: Cerchi psichedelici arcobaleno ---
+            // --- EFFETTO 1: Cerchi concentrici psichedelici arcobaleno ---
             noFill();
             strokeWeight(4);
-            colorMode(HSB); // Modalità colore cangiante sfumata
-            stroke((frameCount * 3 + i * 120) % 360, 85, 100); 
+            colorMode(HSB); // Attiva lo spettro dei colori arcobaleno
+            stroke((frameCount * 3 + i * 120) % 360, 90, 100); 
             
-            // Disegna 3 cerchi concentrici che si espandono continuamente sul tuo dito
             for (let j = 1; j <= 3; j++) {
-              let diametro = (frameCount * 4 + j * 35) % 150;
-              ellipse(puntaDito.x, puntaDito.y, diametro, diametro);
+              let diametro = (frameCount * 4 + j * 35) % 160;
+              ellipse(indice.x, indice.y, diametro, diametro);
             }
-            colorMode(RGB); // Ripristina i colori normali
+            colorMode(RGB); // Ritorna ai colori standard
           }
         }
 
-        // --- EFFETTO 2: Se ci sono DUE mani, uniscile con onde elastiche strane ---
-        if (coordinateTrovate.length === 2) {
-          stroke(0, 255, 230); // Splendido colore celeste neon brillante
+        // --- EFFETTO 2: Se inquadri ENTRAMBE le mani, si collegano con forme strane ---
+        if (coordinateMani.length === 2) {
+          stroke(0, 255, 230); // Splendido azzurro elettrico neon
           strokeWeight(3);
           
-          let m1 = coordinateTrovate[0];
-          let m2 = coordinateTrovate[1];
+          let m1 = coordinateMani[0];
+          let m2 = coordinateMani[1];
 
-          // Disegna una ragnatela di 10 linee oscillanti tese tra le tue mani
+          // Genera una ragnatela di 10 onde geometriche elastiche tese tra le due mani
           for (let k = 0; k <= 10; k++) {
             let t = k / 10;
             let oscillazione = sin(frameCount * 0.12 + k) * 55; 
