@@ -2,197 +2,131 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Progetto IA Scuola</title>
   
-  <!-- File ufficiali e sicuri di Google MediaPipe per tracciare i gesti delle mani -->
-  <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-  <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+  <!-- Carichiamo p5.js e ml5.js ufficiali e leggeri dalle sorgenti sicure -->
+  <script src="https://cloudflare.com"></script>
+  <script src="https://unpkg.com"></script>
 
   <style>
-    * { box-sizing: border-box; }
     body {
       margin: 0; padding: 0;
-      background-color: #08080a;
-      color: white;
-      font-family: system-ui, -apple-system, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
+      background-color: #0f0f14;
+      display: flex; justify-content: center; align-items: center;
+      height: 100vh; font-family: sans-serif; color: white;
       overflow: hidden;
     }
-    .interfaccia {
-      position: absolute;
-      top: 5%;
-      text-align: center;
-      z-index: 10;
-      width: 100%;
-    }
-    h1 { font-size: 26px; margin: 0 0 5px 0; color: #00ffcc; text-shadow: 0 0 15px rgba(0,255,200,0.4); }
-    p { margin: 0; color: #aaa; font-size: 14px; }
-    
-    /* PULSANTE GIGANTE IN PRIMO PIANO - IMPOSSIBILE DA COMPRIMERE */
-    #btn-avvia {
-      position: absolute;
-      z-index: 999;
-      background: #00ffaa;
-      color: #000;
-      font-size: 22px;
-      font-weight: bold;
-      padding: 25px 60px;
-      border: none;
-      border-radius: 50px;
-      cursor: pointer;
-      box-shadow: 0 10px 40px rgba(0,255,170,0.5);
-      letter-spacing: 1px;
-      transition: transform 0.2s;
-    }
-    #btn-avvia:hover { transform: scale(1.05); }
-    
-    /* Schermata video fluida adattiva a tutto schermo */
-    .schermo-video {
-      position: relative;
-      width: 640px;
-      height: 480px;
-      background: #111116;
-      border: 4px solid #00ffcc;
-      border-radius: 16px;
-      box-shadow: 0 15px 50px rgba(0,0,0,0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #webcam, #output {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0; left: 0;
-      object-fit: cover;
-      transform: scaleX(-1); /* Specchia l'immagine per renderla naturale */
-    }
-    #output { z-index: 2; }
-    #caricamento {
-      position: absolute;
-      color: #00ffcc;
-      font-size: 20px;
-      font-weight: bold;
-      display: none;
-      z-index: 5;
-      text-align: center;
+    #canvas-container {
+      border: 4px solid #00ffcc; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 255, 210, 0.3);
     }
   </style>
 </head>
 <body>
 
-  <div class="interfaccia">
-    <h1>IA DETEZIONE MANI - PROGETTO SCUOLA 🖐️</h1>
-    <p>Attiva lo schermo, consenti l'uso della fotocamera e posiziona le mani</p>
-  </div>
-
-  <!-- Il pulsantone verde si sovrappone visivamente al centro di tutto -->
-  <button id="btn-avvia" onclick="faiPartireWebcam()">ACCENDI WEBCAM</button>
-
-  <div class="schermo-video">
-    <div id="caricamento">Configurazione Intelligenza Artificiale... ⏳</div>
-    <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="output"></canvas>
-  </div>
+  <!-- Box dove verrà inserito lo schermo del progetto -->
+  <div id="canvas-container"></div>
 
   <script>
-    const video = document.getElementById('webcam');
-    const canvas = document.getElementById('output');
-    const ctx = canvas.getContext('2d');
-    const btnAvvia = document.getElementById('btn-avvia');
-    const txtCaricamento = document.getElementById('caricamento');
+    let video;
+    let handPose;
+    let hands = [];
+    let iaPronta = false;
 
-    canvas.width = 640;
-    canvas.height = 480;
+    // 1. Carichiamo l'Intelligenza Artificiale
+    function preload() {
+      handPose = ml5.handPose();
+    }
 
-    // Configurazione dell'algoritmo di IA di Google MediaPipe
-    const hands = new Hands({
-      locateFile: (file) => `https://jsdelivr.net{file}`
-    });
-
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6
-    });
-
-    hands.onResults((results) => {
-      txtCaricamento.style.display = "none";
+    // 2. Impostiamo lo schermo del progetto e la webcam
+    function setup() {
+      let canvas = createCanvas(640, 480);
+      canvas.parent('canvas-container'); // Inserisce il disegno dentro il nostro box fisso
       
-      // Effetto persistenza scia neon psichedelica
-      ctx.fillStyle = "rgba(8, 8, 10, 0.25)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Accendiamo la webcam in modalità specchiata (flipped: true) per renderla naturale
+      video = createCapture(VIDEO, { flipped: true });
+      video.size(640, 480);
+      video.hide(); // Nascondiamo il video grezzo per poterci disegnare sopra
+      
+      // Diciamo all'IA di iniziare a cercare continuamente le mani nel video
+      handPose.detectStart(video, gotHands);
+    }
 
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        let puntiMani = [];
+    // 3. Questa funzione si attiva da sola ogni volta che l'IA vede le mani
+    function gotHands(results) {
+      hands = results;
+      iaPronta = true; // Il modello ha risposto ed è attivo!
+    }
 
-        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-          const landmarks = results.multiHandLandmarks[i];
+    // 4. Ciclo grafico continuo a 60 fotogrammi al secondo
+    function draw() {
+      // Se l'IA sta ancora caricando i file in background, mostra la schermata d'attesa
+      if (!iaPronta) {
+        background(20, 20, 30);
+        fill(255);
+        textSize(18);
+        textAlign(CENTER, CENTER);
+        text("Sto configurando l'IA delle mani... ⏳\n\nFai click su 'Consenti' in alto se compare il fumetto!", width / 2, height / 2);
+        return;
+      }
+
+      // Effetto "scia neon": uno sfondo nero trasparente che lascia le tracce dei movimenti
+      background(0, 0, 0, 25);
+      
+      // Disegna il video catturato dalla webcam come sfondo del nostro schermo
+      image(video, 0, 0, width, height);
+
+      // Se l'IA rileva almeno una mano...
+      if (hands.length > 0) {
+        let coordinateTrovate = [];
+
+        // Ciclo su tutte le mani inquadrate (fino a un massimo di 2)
+        for (let i = 0; i < hands.length; i++) {
+          let mano = hands[i];
           
-          // Punto 8: coordinate spaziali della punta del dito indice
-          const x = landmarks.x * canvas.width;
-          const y = landmarks.y * canvas.height;
-          puntiMani.push({ x: x, y: y });
+          // Leggiamo la coordinata della punta del dito indice (sintassi ufficiale ml5.js)
+          let puntaDito = mano.index_finger_tip;
+          
+          if (puntaDito) {
+            // Salviamo la posizione della mano per usarla dopo nell'effetto 2
+            coordinateTrovate.push({ x: puntaDito.x, y: puntaDito.y });
 
-          // EFFETTO 1: Onde concentriche al neon arcobaleno
-          let tempo = Date.now() * 0.004;
-          ctx.lineWidth = 4;
-          for (let j = 1; j <= 3; j++) {
-            let raggio = ((tempo * 22 + j * 35) % 80);
-            ctx.beginPath();
-            ctx.arc(x, y, raggio, 0, 2 * Math.PI);
-            ctx.strokeStyle = `hsl(${(tempo * 15 + j * 40) % 360}, 100%, 60%)`;
-            ctx.stroke();
+            // --- EFFETTO 1: Cerchi psichedelici arcobaleno ---
+            noFill();
+            strokeWeight(4);
+            colorMode(HSB); // Modalità colore cangiante sfumata
+            stroke((frameCount * 3 + i * 120) % 360, 85, 100); 
+            
+            // Disegna 3 cerchi concentrici che si espandono continuamente sul tuo dito
+            for (let j = 1; j <= 3; j++) {
+              let diametro = (frameCount * 4 + j * 35) % 150;
+              ellipse(puntaDito.x, puntaDito.y, diametro, diametro);
+            }
+            colorMode(RGB); // Ripristina i colori normali
           }
         }
 
-        // EFFETTO 2: Se compaiono ENTRAMBE le mani, le collega con una rete magnetica elastica
-        if (puntiMani.length === 2) {
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = '#00ffff'; 
-          let oscillazione = Math.sin(Date.now() * 0.006) * 60;
+        // --- EFFETTO 2: Se ci sono DUE mani, uniscile con onde elastiche strane ---
+        if (coordinateTrovate.length === 2) {
+          stroke(0, 255, 230); // Splendido colore celeste neon brillante
+          strokeWeight(3);
+          
+          let m1 = coordinateTrovate[0];
+          let m2 = coordinateTrovate[1];
 
-          ctx.beginPath();
-          ctx.moveTo(puntiMani[0].x, puntiMani[0].y);
-          ctx.bezierCurveTo(
-            puntiMani[0].x + oscillazione, puntiMani[0].y - oscillazione,
-            puntiMani[1].x - oscillazione, puntiMani[1].y + oscillazione,
-            puntiMani[1].x, puntiMani[1].y
-          );
-          ctx.stroke();
+          // Disegna una ragnatela di 10 linee oscillanti tese tra le tue mani
+          for (let k = 0; k <= 10; k++) {
+            let t = k / 10;
+            let oscillazione = sin(frameCount * 0.12 + k) * 55; 
+            
+            let startX = lerp(m1.x, m2.x, t) + oscillazione;
+            let startY = lerp(m1.y, m2.y, t) - oscillazione;
+            let endX = lerp(m1.x, m2.x, (k + 1) / 10) - oscillazione;
+            let endY = lerp(m1.y, m2.y, (k + 1) / 10) + oscillazione;
+            
+            line(startX, startY, endX, endY);
+          }
         }
-      } else {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-    });
-
-    // Funzione ad innesco immediato forzato al clic dell'utente
-    async function faiPartireWebcam() {
-      btnAvvia.style.display = "none";
-      txtCaricamento.style.display = "block";
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-        video.srcObject = stream;
-        
-        const camera = new Camera(video, {
-          onFrame: async () => {
-            await hands.send({ image: video });
-          },
-          width: 640,
-          height: 480
-        });
-        camera.start();
-      } catch (err) {
-        alert("Errore fotocamera: abilita i permessi nel browser o chiudi software che occupano la webcam!");
-        btnAvvia.style.display = "block";
-        txtCaricamento.style.display = "none";
       }
     }
   </script>
